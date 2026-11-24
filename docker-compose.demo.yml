@@ -1,0 +1,11 @@
+services:
+  elasticsearch:
+    build:
+      context: ${DEMO_ROOT:?Use ./compose.sh}/elasticsearch
+      args:
+        ELASTIC_VERSION: ${ELASTIC_VERSION:?Run ./setup.sh}
+        JWT_HMAC_KEY: ${JWT_HMAC_KEY:?Set JWT_HMAC_KEY in .env}
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env}
+    volumes:
+      - ${DEMO_ROOT:?Use ./compose.sh}/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,Z

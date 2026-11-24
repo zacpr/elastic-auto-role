@@ -1,0 +1,22 @@
+---
+## Default Elasticsearch configuration from Elasticsearch base image.
+## https://github.com/elastic/elasticsearch/blob/main/distribution/docker/src/docker/config/elasticsearch.yml
+#
+cluster.name: docker-cluster
+network.host: 0.0.0.0
+
+xpack.license.self_generated.type: trial
+xpack.security.enabled: true
+
+# --- JWT demo realm (toy tokens signed with a shared HMAC secret) ---
+# The HMAC key itself lives in the Elasticsearch keystore (see Dockerfile).
+xpack.security.authc.realms.jwt.jwt1:
+  order: -1
+  allowed_issuer: "local-issuer"
+  allowed_audiences: ["elasticsearch"]
+  allowed_signature_algorithms: ["HS256"]
+  allowed_subject_patterns: ["*"]   # any subject (tighten for real use)
+  token_type: id_token
+  client_authentication.type: none
+  claims.principal: sub
+  claims.groups: groups
