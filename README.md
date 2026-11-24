@@ -35,6 +35,9 @@ Requirements: Git, Python 3, Docker with Compose v2, and internet access.
 ./run.sh
 ```
 
+If your selected Docker context is unavailable, choose a running context, for
+example `DOCKER_CONTEXT=default ./run.sh`.
+
 On first run, setup clones [docker-elk](https://github.com/deviantony/docker-elk)
 at commit `ae21fbe976c1392505befc0b47ae128d1a1436fb` into `.docker-elk/` and
 generates a private `.env` containing fresh demo credentials. Both are ignored
