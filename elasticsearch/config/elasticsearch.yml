@@ -8,6 +8,18 @@ network.host: 0.0.0.0
 xpack.license.self_generated.type: trial
 xpack.security.enabled: true
 
+# --- CORS for the browser demo (site/index.html) ---
+# The web demo drives this cluster straight from the browser, so the cluster has
+# to answer cross-origin requests. DEMO ONLY: "*" means any web page can call
+# this cluster. The demo binds to a disposable local cluster, so that is
+# acceptable here -- never copy this into a shared or production cluster.
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+http.cors.allow-credentials: false
+http.cors.allow-methods: GET, POST, PUT, DELETE, HEAD, OPTIONS
+http.cors.allow-headers: Authorization, Content-Type, Accept, Origin, X-Requested-With, X-Opaque-Id, es-security-run-as-user
+http.cors.max-age: 3600
+
 # --- JWT demo realm (toy tokens signed with a shared HMAC secret) ---
 # The HMAC key itself lives in the Elasticsearch keystore (see Dockerfile).
 xpack.security.authc.realms.jwt.jwt1:

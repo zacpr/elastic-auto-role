@@ -45,7 +45,8 @@ class PackagingTests(unittest.TestCase):
         self.bin = Path(self.tmp.name) / "bin"
         self.root.mkdir()
         self.bin.mkdir()
-        for name in ("setup.sh", "compose.sh", "run.sh", "demo.py"):
+        for name in ("setup.sh", "compose.sh", "run.sh", "demo.py",
+                     "teardown.sh", "web.sh", "serve.py"):
             shutil.copy2(ROOT / name, self.root / name)
         self.write_executable("git", FAKE_GIT)
         self.env = os.environ.copy()
@@ -141,7 +142,7 @@ printf '%s\\n' "$DEMO_ROOT" "$@"
 set -eu
 case "$*" in
     *"up -d --build elasticsearch") echo up >> "$RUN_LOG" ;;
-    *"down") echo down >> "$RUN_LOG" ;;
+    *"down"*) echo down >> "$RUN_LOG" ;;
     *) exit 1 ;;
 esac
 """)

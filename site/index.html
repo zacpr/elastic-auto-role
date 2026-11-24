@@ -1,0 +1,1846 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elasticsearch auto-role — live demo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2300bfb3'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='15' font-weight='bold' text-anchor='middle' fill='%23041220'%3EEA%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0b1020; --bg2:#0f162b; --panel:#141d36; --panel2:#182340;
+  --line:#243356; --line2:#2f4straße;
+  --text:#e8edf7; --muted:#9aa8c7; --dim:#6c7c9e;
+  --teal:#00bfb3; --blue:#00b9f4; --yellow:#fec514; --pink:#f04e98;
+  --green:#3fb950; --red:#f85149; --purple:#a371f7;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --radius:12px; --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(1200px 700px at 15% -10%,#16224a 0%,var(--bg) 55%) fixed;
+  color:var(--text); font-family:var(--sans); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  /* App layout: the header and the console dock are fixed rows, the walkthrough
+     scrolls between them, so the console is never off screen. */
+  height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+}
+a{color:var(--blue)}
+h1,h2,h3{line-height:1.25;margin:0}
+
+/* ---------------------------------------------------------------- top bar */
+.topbar{
+  position:relative; z-index:60; flex:0 0 auto;
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:12px 22px; border-bottom:1px solid var(--line);
+  background:rgba(11,16,32,.96); backdrop-filter:blur(12px);
+}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand .logo{
+  width:34px;height:34px;border-radius:9px;flex:0 0 auto;
+  background:linear-gradient(140deg,var(--teal),var(--blue));
+  display:grid;place-items:center;font-weight:800;color:#04121a;font-size:15px;
+  box-shadow:0 4px 14px rgba(0,191,179,.35);
+}
+.brand h1{font-size:16px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand .sub{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .spacer{flex:1 1 auto}
+.status{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pill{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:4px 11px;border-radius:999px;border:1px solid var(--line);
+  background:var(--panel); font-size:12px; color:var(--muted); white-space:nowrap;
+}
+.pill .dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.pill.ok{border-color:rgba(63,185,80,.4);color:#b9f0c1}
+.pill.ok .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+.pill.err{border-color:rgba(248,81,73,.45);color:#ffc0bb}
+.pill.err .dot{background:var(--red);box-shadow:0 0 8px var(--red)}
+.pill.busy{border-color:rgba(0,185,244,.4);color:#bfe9ff}
+.pill.busy .dot{background:var(--blue);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);
+  padding:7px 14px;border-radius:9px;font-size:13px;font-weight:550;cursor:pointer;
+  font-family:inherit;transition:.15s transform,.15s background,.15s border-color;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+}
+.btn:hover:not(:disabled){background:var(--panel2);border-color:#3a4d78;transform:translateY(-1px)}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn.primary{background:linear-gradient(140deg,var(--teal),#12a89f);border-color:transparent;color:#032220;font-weight:700}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08)}
+.btn.ghost{background:transparent}
+.btn.danger{border-color:rgba(248,81,73,.5);color:#ffb4ae}
+.btn.sm{padding:4px 10px;font-size:12px;border-radius:7px}
+.btn:focus-visible,.rail button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* ------------------------------------------------------------ connect card */
+.connect{
+  margin:18px 22px;border:1px solid var(--line);border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--panel),var(--bg2));padding:20px;box-shadow:var(--shadow);
+}
+.connect h2{font-size:17px;margin-bottom:4px}
+.connect .hint{color:var(--muted);font-size:13.5px;margin-bottom:16px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);font-weight:650}
+.field .tip{font-size:11.5px;color:var(--dim);text-transform:none;letter-spacing:0;font-weight:400}
+input[type=text],input[type=password],textarea,select{
+  background:#0a0f1f;border:1px solid var(--line);color:var(--text);
+  border-radius:9px;padding:9px 11px;font-family:var(--mono);font-size:13px;width:100%;
+}
+textarea{min-height:96px;resize:vertical;line-height:1.55}
+.connect .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.connect .err{
+  margin-top:14px;padding:10px 13px;border-radius:9px;font-size:13px;display:none;
+  border:1px solid rgba(248,81,73,.45);background:rgba(248,81,73,.1);color:#ffc0bb;
+}
+.connect .err.show{display:block}
+code.inline{font-family:var(--mono);background:#0a0f1f;border:1px solid var(--line);padding:1px 6px;border-radius:6px;font-size:12.5px;color:#cfe3ff}
+
+/* ------------------------------------------------------------------ safety */
+.safety{
+  margin:0 22px 18px;padding:13px 16px;border-radius:var(--radius);
+  border:1px solid rgba(254,197,20,.35);background:rgba(254,197,20,.08);
+  font-size:13.5px;color:#ffe9a8;display:flex;gap:12px;align-items:flex-start;
+}
+.safety b{color:#fff3c4}
+.safety .ico{flex:0 0 auto;font-size:17px;line-height:1.4}
+.safety ul{margin:6px 0 0;padding-left:18px}
+.safety li{margin:3px 0}
+
+/* ------------------------------------------------------------------ layout */
+.page{
+  flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-direction:column;
+  scrollbar-gutter:stable;
+}
+.shell{
+  display:grid; grid-template-columns:250px minmax(0,1fr) 300px;
+  gap:26px;padding:0 22px 26px;align-items:start;
+}
+.rail{
+  position:sticky;top:14px;overflow:auto;padding:4px 2px 20px;
+  max-height:calc(100dvh - var(--console-h,260px) - 96px);
+}
+.rail-title{
+  font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);
+  font-weight:700;margin:0 0 8px 10px;
+}
+.rail-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.rail-list button{
+  width:100%;display:flex;align-items:center;gap:10px;text-align:left;
+  background:transparent;border:1px solid transparent;border-radius:9px;
+  color:var(--muted);font-family:inherit;font-size:13px;padding:7px 9px;cursor:pointer;transition:.14s;
+}
+.rail-list button:hover{background:var(--panel);color:var(--text)}
+.rail-list button .n{
+  flex:0 0 auto;width:21px;height:21px;border-radius:6px;display:grid;place-items:center;
+  background:#182340;border:1px solid var(--line);font-size:11px;font-family:var(--mono);color:var(--dim);
+}
+.rail-list button .t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail-list button .s{flex:0 0 auto;font-size:11px;width:14px;text-align:center}
+.rail-list button.active{background:var(--panel2);border-color:#31456f;color:var(--text)}
+.rail-list button.active .n{background:var(--teal);border-color:transparent;color:#042220;font-weight:700}
+.rail-list button.done .s{color:var(--green)}
+.rail-list button.failed .s{color:var(--red)}
+.rail-list button.running .n{background:var(--blue);border-color:transparent;color:#03202c}
+
+/* ------------------------------------------------------------------- steps */
+#steps{min-width:0;display:flex;flex-direction:column;gap:22px}
+.step{
+  border:1px solid var(--line);border-radius:var(--radius);
+  background:linear-gradient(180deg,rgba(20,29,54,.72),rgba(15,22,43,.72));
+  padding:22px 24px;scroll-margin-top:16px;
+}
+.step.active{border-color:#3a5087;box-shadow:0 0 0 1px rgba(58,80,135,.35),var(--shadow)}
+.step-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.step-head .num{
+  font-family:var(--mono);font-size:12px;color:var(--teal);
+  border:1px solid rgba(0,191,179,.4);border-radius:7px;padding:1px 8px;
+}
+.step-head h2{font-size:19px;font-weight:650}
+.step .lede{color:var(--muted);font-size:14.5px;margin:0 0 14px}
+.step h3{
+  font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);
+  margin:20px 0 9px;font-weight:700;
+}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.card{
+  border:1px solid var(--line);border-radius:10px;background:rgba(10,15,31,.5);padding:13px 14px;min-width:0;
+}
+.card .ct{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;font-weight:650}
+.card p{margin:0;font-size:13.5px;color:var(--muted)}
+
+/* code + json */
+pre.code{
+  margin:0;padding:12px 14px;border-radius:10px;border:1px solid var(--line);
+  background:#070c19;overflow:auto;max-height:420px;
+  font-family:var(--mono);font-size:12.4px;line-height:1.6;color:#c9d6f0;
+  white-space:pre;tab-size:2;
+}
+.codewrap{position:relative;border-radius:10px;margin:0 0 10px}
+.codewrap .copy{position:absolute;top:8px;right:8px;opacity:0;transition:.15s}
+.codewrap:hover .copy,.codewrap .copy:focus-visible{opacity:1}
+.json-key{color:#7fd3ff}.json-str{color:#a5e89a}.json-num{color:#ffc978}
+.json-bool{color:#f04e98}.json-null{color:var(--dim)}.json-punc{color:#7f8db0}
+.kv{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px;padding:0;list-style:none}
+.kv li{
+  border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:rgba(10,15,31,.5);
+  font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+}
+.kv li b{color:var(--text);font-weight:600}
+
+/* check rows */
+.checks{display:flex;flex-direction:column;gap:6px;margin:4px 0 0}
+.check{
+  display:flex;align-items:center;gap:10px;padding:7px 11px;border-radius:9px;
+  border:1px solid var(--line);background:rgba(10,15,31,.45);font-size:13.2px;
+  animation:slidein .28s ease both;
+}
+@keyframes slidein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.check .mark{flex:0 0 auto;width:17px;text-align:center;font-weight:700}
+.check .label{flex:1 1 auto;min-width:0}
+.check .code{
+  flex:0 0 auto;font-family:var(--mono);font-size:11.5px;color:var(--dim);
+  border:1px solid var(--line);border-radius:6px;padding:1px 7px;
+}
+.check.ok{border-color:rgba(63,185,80,.35);background:rgba(63,185,80,.07)}
+.check.ok .mark{color:var(--green)}
+.check.bad{border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.08)}
+.check.bad .mark{color:var(--red)}
+.check .detail{color:var(--dim);font-size:12px}
+.note{
+  margin:9px 0 0;padding:9px 13px;border-left:2px solid var(--teal);
+  background:rgba(0,191,179,.06);color:#a9d8d5;font-size:13.2px;border-radius:0 8px 8px 0;
+}
+.info{
+  margin:9px 0 0;padding:9px 13px;border-left:2px solid var(--blue);
+  background:rgba(0,185,244,.06);color:#b7dff5;font-size:13.2px;border-radius:0 8px 8px 0;
+}
+.warn{
+  margin:9px 0 0;padding:9px 13px;border-left:2px solid var(--yellow);
+  background:rgba(254,197,20,.07);color:#ffe6a4;font-size:13.2px;border-radius:0 8px 8px 0;
+}
+.pending{color:var(--dim);font-size:13px;font-style:italic}
+
+/* live panel */
+.live{position:sticky;top:14px;display:flex;flex-direction:column;gap:12px}
+.live .panel{
+  border:1px solid var(--line);border-radius:var(--radius);background:rgba(20,29,54,.72);padding:15px;
+}
+.live .panel h3{margin:0 0 10px}
+.live .stats{display:flex;flex-direction:column;gap:7px;font-size:12.8px}
+.live .stats div{display:flex;justify-content:space-between;gap:10px}
+.live .stats span:first-child{color:var(--dim)}
+.live .stats span:last-child{font-family:var(--mono);color:var(--text);text-align:right;word-break:break-all}
+.live ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.live ul.list li{
+  font-family:var(--mono);font-size:12px;padding:5px 9px;border-radius:7px;
+  border:1px solid var(--line);background:rgba(10,15,31,.5);display:flex;justify-content:space-between;gap:8px;
+}
+.live ul.list li .tag{color:var(--dim);font-size:11px}
+.live .empty{color:var(--dim);font-size:12.5px;font-style:italic}
+.live .btn{width:100%;justify-content:center}
+.live .token{
+  font-family:var(--mono);font-size:11px;word-break:break-all;color:#bfe9ff;
+  background:#070c19;border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:8px;
+}
+
+/* --------------------------------------------------------------- console */
+/* A full-width dock pinned to the bottom of the window. It is a fixed row of
+   the app layout, so it never covers the walkthrough -- drag the grip to
+   resize it, or collapse it to a title bar. */
+.console{
+  flex:0 0 auto;z-index:40;margin:0;
+  border-top:1px solid var(--line);
+  background:rgba(8,12,24,.97);
+  box-shadow:0 -10px 34px rgba(0,0,0,.5);
+  display:flex;flex-direction:column;
+  height:var(--console-h,260px);min-height:44px;
+  transition:height .2s ease;
+}
+.console.collapsed{height:52px}
+.console.dragging{transition:none;user-select:none}
+.console-grip{
+  height:9px;flex:0 0 auto;cursor:ns-resize;position:relative;
+  display:flex;align-items:center;justify-content:center;
+}
+.console-grip::after{
+  content:"";width:44px;height:3px;border-radius:2px;background:var(--line);
+  transition:background .15s,width .15s;
+}
+.console-grip:hover::after{background:var(--teal);width:64px}
+.console.dragging .console-grip::after{background:var(--teal);width:64px}
+.console-head{
+  display:flex;align-items:center;gap:10px;padding:2px 13px 9px;flex:0 0 auto;min-width:0;
+  border-bottom:1px solid var(--line);
+}
+.console-head .ttl{
+  font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;gap:8px;flex:0 0 auto;
+}
+.console-head .ttl .dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+.console.busy .console-head .ttl .dot{background:var(--blue);animation:pulse 1s infinite}
+.console-head .sp{flex:1}
+.console-head .count{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.console-body{
+  overflow:auto;padding:11px 14px;font-family:var(--mono);font-size:12.4px;line-height:1.65;
+  color:#b9c7e4;white-space:pre-wrap;word-break:break-word;flex:1 1 auto;min-height:0;
+}
+.console.collapsed .console-body{display:none}
+.console-body .t-step{color:var(--teal);font-weight:700;display:block;margin-top:9px}
+.console-body .t-ok{color:var(--green)}
+.console-body .t-bad{color:var(--red)}
+.console-body .t-note{color:var(--dim)}
+.console-body .t-info{color:var(--blue)}
+.console-body .t-head{color:#fff;font-weight:700}
+.console-body .t-json{color:#9fb4d8}
+/* while collapsed, show the last line in the title bar instead of nothing */
+.console-peek{
+  display:none;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--mono);font-size:12px;color:var(--muted);
+}
+.console.collapsed .console-peek{display:block}
+
+/* ------------------------------------------------------------------ toast */
+.toast{
+  position:fixed;left:50%;bottom:calc(var(--toast-h,260px) + 18px);transform:translate(-50%,20px);
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 18px;
+  font-size:13.5px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.25s;z-index:120;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ------------------------------------------------------------- responsive */
+@media (max-width:1200px){
+  .shell{grid-template-columns:230px minmax(0,1fr)}
+  .live{grid-column:1/-1;position:static;flex-direction:row;flex-wrap:wrap}
+  .live .panel{flex:1 1 280px}
+}
+@media (max-width:820px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:18px}
+  .rail{position:static;max-height:none}
+  .rail-list{flex-direction:row;overflow-x:auto;padding-bottom:6px}
+  .rail-list li{flex:0 0 auto}
+  .rail-list button .t{display:none}
+  .console{--console-h:38vh}
+  .console.collapsed{height:52px}
+  /* the console header has to survive a narrow screen: let the title shrink
+     and drop the button labels to icons */
+  .console-head{gap:6px;padding:2px 8px 9px}
+  .console-head .ttl{font-size:11px;letter-spacing:.04em}
+  .console-head .count{display:none}
+  .console-head .btn.sm{padding:4px 8px;font-size:11px}
+  .console-head #btn-console-max{display:none}
+  .console-head #btn-console-clear{display:none}
+  .console-head #btn-console-toggle{font-size:11px;padding:4px 8px}
+  .topbar{padding:10px 14px}
+  .connect,.safety{margin-left:14px;margin-right:14px}
+  .shell{padding-left:14px;padding-right:14px}
+  .step{padding:18px 16px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">EA</div>
+    <div>
+      <h1>Elasticsearch auto-role</h1>
+      <div class="sub">JWT-driven self-service roles &mdash; live against a real cluster</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="status">
+    <span class="pill" id="pill-conn"><span class="dot"></span><span id="conn-text">Not connected</span></span>
+    <span class="pill" id="pill-health"><span class="dot"></span><span id="health-text">&mdash;</span></span>
+    <span class="pill" id="pill-fail"><span class="dot"></span><span id="fail-text">0 failed</span></span>
+  </div>
+  <div class="actions">
+    <button class="btn primary" id="btn-run">Run demo</button>
+    <button class="btn" id="btn-step">Run next step</button>
+    <button class="btn ghost" id="btn-reset">Reset</button>
+    <button class="btn ghost danger" id="btn-teardown" title="Stop the demo cluster and delete its data">Stop cluster</button>
+  </div>
+</header>
+
+<!-- ------------------------------------------------------------- connect -->
+<div class="page">
+<section class="connect" id="connect">
+  <h2>Point this page at your demo cluster</h2>
+  <p class="hint">
+    The page drives Elasticsearch directly from your browser &mdash; every request, role, API key and
+    JWT below is real. It needs the same two values <code class="inline">demo.py</code> uses, from your
+    local <code class="inline">.env</code> file.
+  </p>
+  <div class="grid2">
+    <div class="field">
+      <label for="f-url">Elasticsearch URL</label>
+      <input type="text" id="f-url" value="http://localhost:9200" spellcheck="false" autocomplete="off">
+      <span class="tip">Where the browser can reach Elasticsearch.</span>
+    </div>
+    <div class="field">
+      <label for="f-cb">Watcher callback URL</label>
+      <input type="text" id="f-cb" value="http://localhost:9200" spellcheck="false" autocomplete="off">
+      <span class="tip">How the Elasticsearch container reaches <em>itself</em> for the webhook.</span>
+    </div>
+    <div class="field" style="grid-column:1/-1">
+      <label for="f-env">.env contents</label>
+      <textarea id="f-env" spellcheck="false" autocomplete="off" placeholder="ELASTIC_VERSION=9.5.6&#10;ELASTIC_PASSWORD=...&#10;JWT_HMAC_KEY=..."></textarea>
+      <span class="tip">
+        Paste the output of <code class="inline">cat .env</code>. Needs
+        <code class="inline">ELASTIC_PASSWORD</code> (admin) and <code class="inline">JWT_HMAC_KEY</code> (token signing).
+      </span>
+    </div>
+  </div>
+  <div class="row">
+    <button class="btn primary" id="btn-connect">Connect</button>
+    <button class="btn" id="btn-autoload">Try to load .env automatically</button>
+    <label class="pill" style="cursor:pointer">
+      <input type="checkbox" id="f-remember" style="width:auto;margin:0">
+      <span>Remember for this browser tab</span>
+    </label>
+  </div>
+  <div class="err" id="connect-err"></div>
+  <p class="pending" id="teardown-note" style="display:none;margin-top:12px">
+    This page cannot remove the Docker container on its own. To stop the demo
+    cluster and delete its data, run <code class="inline">./teardown.sh</code>
+    in a terminal.
+  </p>
+</section>
+
+<!-- -------------------------------------------------------------- safety -->
+<div class="safety" id="safety">
+  <div class="ico">&#9888;</div>
+  <div>
+    <b>This is a live demo against a real cluster.</b>
+    It deletes all <code class="inline">app-*</code> indices, invalidates <code class="inline">demo-*</code> API keys and
+    removes its watch, mapping and team roles before it runs &mdash; and again afterwards unless you ask it to keep them.
+    <ul>
+      <li>Use a <b>dedicated, disposable demo cluster</b> only. Never point this at a shared or production cluster.</li>
+      <li>Not a production security configuration: HTTP, a shared HMAC key, a trial licence, and usable bearer tokens are printed on screen.</li>
+      <li>The watcher's API key holds cluster-wide role put/get. Its privileges are <b>not</b> limited to the role names the watch creates.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- -------------------------------------------------------------- layout -->
+<div class="shell">
+  <nav class="rail" aria-label="Demo steps">
+    <p class="rail-title">Walkthrough</p>
+    <ol class="rail-list" id="rail"></ol>
+  </nav>
+
+  <main id="steps">
+
+    <section class="step" id="step-0" data-title="Overview">
+      <div class="step-head"><span class="num">00</span><h2>What this demo simulates</h2></div>
+      <p class="lede">
+        A team must get read access to its own indices without anyone editing a role by hand.
+        The team cannot create roles; a privileged watcher performs that operation.
+        Three moving parts do it.
+      </p>
+      <div class="cards">
+        <div class="card">
+          <div class="ct">(a) A JWT</div>
+          <p>Carries a <code class="inline">team</code> claim. The realm turns that claim into searchable metadata at login.</p>
+        </div>
+        <div class="card">
+          <div class="ct">(b) A role mapping with a template</div>
+          <p>Resolves <code class="inline">team</code> &rarr; <code class="inline">team_&lt;team&gt;_reader</code> on the fly. No user is listed anywhere.</p>
+        </div>
+        <div class="card">
+          <div class="ct">(c) A watcher</div>
+          <p>Sees new <code class="inline">app-&lt;team&gt;-*</code> indices and creates the role body from the index <em>name</em>.</p>
+        </div>
+      </div>
+      <p class="note">The app team itself only ever holds <code class="inline">create_index</code> + <code class="inline">write</code> on
+        <code class="inline">app-&lt;team&gt;-*</code>. It can create its own index, and that act alone causes it to gain read access &mdash;
+        it can never create a role, and never needs an admin.</p>
+      <p class="note">Watch the two privilege hand-offs: the admin sets up (a)(b)(c) once, then the team drives everything itself.</p>
+      <h3>Live cluster</h3>
+      <div class="live-out"><p class="pending">Connect to see the cluster this page is about to talk to.</p></div>
+    </section>
+
+    <section class="step" id="step-1" data-title="Role-creator API key">
+      <div class="step-head"><span class="num">01</span><h2>Admin: mint a <em>minimal</em> API key for the role-creator watcher</h2></div>
+      <p class="lede">The admin creates one API key that the watcher will use. It can write roles &mdash; and nothing else.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-2" data-title="JWT role mapping">
+      <div class="step-head"><span class="num">02</span><h2>Admin: JWT role mapping &mdash; claim <code class="inline">team=X</code> &rarr; role <code class="inline">team_X_reader</code></h2></div>
+      <p class="lede">The mapping is what makes this zero-touch. The role name is resolved at login time from a template, so a brand-new team needs no admin edit.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-3" data-title="The watcher">
+      <div class="step-head"><span class="num">03</span><h2>Admin: install the role-per-team watch</h2></div>
+      <p class="lede">The watcher is the only thing that ever creates a role, and it does it from index <em>names</em> &mdash;
+        <code class="inline">app-alpha-orders</code> &rarr; <code class="inline">team_alpha_reader</code>. The team never names a role; the index name alone decides the role body.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-4" data-title="Team bootstrap keys">
+      <div class="step-head"><span class="num">04</span><h2>Admin: onboard teams &mdash; each gets a create-index key scoped to <code class="inline">app-&lt;team&gt;-*</code></h2></div>
+      <p class="lede">This is the whole trust model: the team can <em>create</em> and <em>write</em> its own indices, and that is all. No read, no role verbs, no cluster verbs.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-5" data-title="Team alpha creates an index">
+      <div class="step-head"><span class="num">05</span><h2>Team alpha: bootstrap its own index with <em>only</em> the limited key</h2></div>
+      <p class="lede">The 403s are the point: the team is contained to its own namespace and can never mint itself a role.
+        Its only lever is <em>creating an index</em> &mdash; which is exactly the trigger the watcher is waiting for.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-6" data-title="Before the watcher runs">
+      <div class="step-head"><span class="num">06</span><h2>Before the watcher has run, a team-alpha JWT authenticates but sees nothing</h2></div>
+      <p class="lede">The token is valid and the realm accepts it &mdash; the team claim already resolves to
+        <code class="inline">team_alpha_reader</code>. The role just doesn't exist yet, so the mapping grants nothing.
+        <b>Authentication and authorisation are separate.</b></p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-7" data-title="Watcher creates the role">
+      <div class="step-head"><span class="num">07</span><h2>Wait for the watcher to notice the new index and create the role</h2></div>
+      <p class="lede">The team never asked for this and never had the privilege to do it. Creating
+        <code class="inline">app-alpha-orders</code> was enough: the watcher saw the name, built the role from the name
+        pattern, and the step-2 mapping now has something to point at. This is the self-service loop, fully closed.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-8" data-title="Alpha reads its own data">
+      <div class="step-head"><span class="num">08</span><h2>JWT access: alpha token reads alpha data only</h2></div>
+      <p class="lede">Read its own data: <b>yes</b>. Read another team's data: <b>no</b>. Write: <b>no</b>.
+        The same claim that was refused in step 6 now grants access &mdash; the only thing that changed is that the watcher filled in the role body.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-9" data-title="Team beta, self-service">
+      <div class="step-head"><span class="num">09</span><h2>A second team shows it is fully self-service</h2></div>
+      <p class="lede">Beta onboards itself: own key &rarr; own index &rarr; watcher &rarr; own role.
+        <b>No admin action between alpha and beta.</b> That is what &ldquo;self-service&rdquo; means.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-10" data-title="Token hygiene">
+      <div class="step-head"><span class="num">10</span><h2>Token hygiene: bad tokens are rejected by the realm</h2></div>
+      <p class="lede">The claim is not a capability: a valid signature alone grants nothing.
+        <code class="inline">gamma</code> has no index, so no watcher-generated role exists, so the mapping resolves to a role that grants nothing.</p>
+      <div class="live-out"></div>
+    </section>
+
+    <section class="step" id="step-11" data-title="What just happened">
+      <div class="step-head"><span class="num">11</span><h2>What just happened</h2></div>
+      <div class="cards">
+        <div class="card"><div class="ct">1</div><p>The admin did three things <b>once</b>: a role-mapping template, a JWT realm, and a watcher. No user, no role, and no mapping per team.</p></div>
+        <div class="card"><div class="ct">2</div><p>The team held one API key: <code class="inline">create_index</code> + <code class="inline">write</code> on <code class="inline">app-&lt;team&gt;-*</code>.</p></div>
+        <div class="card"><div class="ct">3</div><p>Creating <code class="inline">app-alpha-orders</code> triggered the watcher, which built <code class="inline">team_alpha_reader</code> from the index <b>name</b> &mdash; a privilege the team did not have and never asked for.</p></div>
+        <div class="card"><div class="ct">4</div><p>A JWT with <code class="inline">team=alpha</code> then resolved to that role at login, so the team got read access it was never granted directly, while being locked out of every other team's data and of role creation.</p></div>
+      </div>
+      <p class="note"><b>Effective access without effective authority:</b> the team CAN reach its data, but it can never reach the role API that made that possible.</p>
+      <div class="live-out"></div>
+    </section>
+
+  </main>
+
+  <aside class="live" aria-label="Live cluster state">
+    <div class="panel">
+      <h3>Cluster</h3>
+      <div class="stats" id="live-cluster"><div><span>status</span><span>&mdash;</span></div></div>
+    </div>
+    <div class="panel">
+      <h3>app-* indices</h3>
+      <ul class="list" id="live-indices"><li class="empty">none yet</li></ul>
+    </div>
+    <div class="panel">
+      <h3>team roles</h3>
+      <ul class="list" id="live-roles"><li class="empty">none yet</li></ul>
+    </div>
+    <div class="panel">
+      <h3>Mint a token</h3>
+      <div class="field">
+        <select id="mint-team">
+          <option value="alpha">alpha</option>
+          <option value="beta">beta</option>
+          <option value="gamma">gamma</option>
+        </select>
+      </div>
+      <button class="btn sm" id="btn-mint" style="margin-top:9px">Mint JWT</button>
+      <div class="token" id="mint-out" style="display:none"></div>
+      <button class="btn sm" id="btn-curl" style="margin-top:9px;display:none">Copy a curl command</button>
+    </div>
+  </aside>
+</div>
+</div><!-- /.page -->
+
+<!-- ------------------------------------------------------------- console -->
+<div class="console collapsed" id="console">
+  <div class="console-grip" id="console-grip" role="separator" aria-orientation="horizontal"
+       aria-label="Resize console" title="Drag to resize · double-click to reset"></div>
+  <div class="console-head">
+    <span class="ttl"><span class="dot"></span>Console</span>
+    <span class="count" id="console-count"></span>
+    <span class="console-peek" id="console-peek"></span>
+    <span class="sp"></span>
+    <button class="btn sm ghost" id="btn-console-max" title="Toggle a tall console">Tall</button>
+    <button class="btn sm ghost" id="btn-console-copy">Copy</button>
+    <button class="btn sm ghost" id="btn-console-clear">Clear</button>
+    <button class="btn sm ghost" id="btn-console-toggle">Expand</button>
+  </div>
+  <div class="console-body" id="term-body"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   Elasticsearch auto-role — live browser demo
+   Drives a real Elasticsearch cluster over the HTTP API. Every request,
+   role, API key and JWT shown here is real.
+   ========================================================================= */
+
+/* ------------------------------------------------------------ constants */
+const ISSUER   = "local-issuer";
+const AUDIENCE = "elasticsearch";
+const TEAMS    = ["alpha", "beta"];
+const WATCH_ID = "role-per-team";
+const MAPPING_ID = "jwt_team_readers";
+const WATCH_INTERVAL = "10s";   // must be >= the cluster's watch interval
+
+/* --------------------------------------------------------------- state */
+const S = {
+  esUrl: "", cbUrl: "", password: "", hmacKey: "",
+  adminAuth: "", rcKey: "", teamKeys: {},
+  failures: 0, running: false, connected: false, stepIndex: -1,
+  keep: true, pollTimer: null,
+};
+
+/* ---------------------------------------------------------- tiny helpers */
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const COPY = {};
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function b64u(bytes) {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function base64UrlToBytes(s) {
+  const pad = s.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(pad + "=".repeat((4 - (pad.length % 4)) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function hex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* ============================================================ HMAC-SHA256
+   WebCrypto when available (secure context), pure-JS fallback otherwise so
+   the page also works when served over plain http on a LAN address.
+   -------------------------------------------------------------------- */
+function sha256Bytes(msg) {
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+  ];
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  const total = Math.ceil((msg.length + 9) / 64) * 64;
+  const buf = new Uint8Array(total);
+  buf.set(msg);
+  buf[msg.length] = 0x80;
+  const dv = new DataView(buf.buffer);
+  const bitLen = msg.length * 8;
+  dv.setUint32(total - 8, Math.floor(bitLen / 4294967296));
+  dv.setUint32(total - 4, bitLen >>> 0);
+  const w = new Uint32Array(64);
+  for (let off = 0; off < total; off += 64) {
+    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(off + t * 4);
+    for (let t = 16; t < 64; t++) {
+      const x = w[t - 15], y = w[t - 2];
+      const s0 = rotr(x, 7) ^ rotr(x, 18) ^ (x >>> 3);
+      const s1 = rotr(y, 17) ^ rotr(y, 19) ^ (y >>> 10);
+      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let t = 0; t < 64; t++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[t] + w[t]) >>> 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+    H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+  }
+  const out = new Uint8Array(32);
+  const odv = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) odv.setUint32(i * 4, H[i], false);
+  return out;
+}
+function hmacSha256Bytes(keyBytes, msgBytes) {
+  const BLOCK = 64;
+  let k = keyBytes.length > BLOCK ? sha256Bytes(keyBytes) : keyBytes;
+  const ipad = new Uint8Array(BLOCK), opad = new Uint8Array(BLOCK);
+  for (let i = 0; i < BLOCK; i++) {
+    const b = i < k.length ? k[i] : 0;
+    ipad[i] = b ^ 0x36;
+    opad[i] = b ^ 0x5c;
+  }
+  const inner = new Uint8Array(BLOCK + msgBytes.length);
+  inner.set(ipad); inner.set(msgBytes, BLOCK);
+  const innerHash = sha256Bytes(inner);
+  const outer = new Uint8Array(BLOCK + 32);
+  outer.set(opad); outer.set(innerHash, BLOCK);
+  return sha256Bytes(outer);
+}
+async function hmacSha256(keyStr, msgStr) {
+  const enc = new TextEncoder();
+  if (globalThis.crypto && globalThis.crypto.subtle) {
+    try {
+      const key = await crypto.subtle.importKey("raw", enc.encode(keyStr), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+      const sig = await crypto.subtle.sign("HMAC", key, enc.encode(msgStr));
+      return new Uint8Array(sig);
+    } catch (e) { /* fall through to the pure-JS path */ }
+  }
+  return hmacSha256Bytes(enc.encode(keyStr), enc.encode(msgStr));
+}
+
+/* ------------------------------------------------------------ JWT minting */
+async function mintJwt(sub, team, opts) {
+  opts = opts || {};
+  const key = opts.key || S.hmacKey;
+  const ttl = opts.ttl === undefined ? 300 : opts.ttl;
+  const issuer = opts.issuer || ISSUER;
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "HS256", typ: "JWT" };
+  const claims = {
+    iss: issuer, aud: AUDIENCE, sub: sub, team: team,
+    iat: now, auth_time: now, exp: now + ttl,
+  };
+  const enc = new TextEncoder();
+  const signing = b64u(enc.encode(JSON.stringify(header))) + "." + b64u(enc.encode(JSON.stringify(claims)));
+  const sig = await hmacSha256(key, signing);
+  return signing + "." + b64u(sig);
+}
+function jwtParts(tok) {
+  const dec = seg => JSON.parse(new TextDecoder().decode(base64UrlToBytes(seg)));
+  const parts = tok.split(".");
+  return { header: dec(parts[0]), claims: dec(parts[1]) };
+}
+const bearer = tok => "Bearer " + tok;
+const apiKeyAuth = enc => "ApiKey " + enc;
+
+/* --------------------------------------------------------- HTTP to ES */
+async function api(method, path, body, auth) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (auth) opts.headers["Authorization"] = auth;
+  if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
+  let res;
+  try {
+    res = await fetch(S.esUrl + path, opts);
+  } catch (e) {
+    return { status: 0, json: null, text: String((e && e.message) || e), network: true };
+  }
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : {}; } catch (e) { json = null; }
+  return { status: res.status, json, text, ok: res.status < 300 };
+}
+
+/* ------------------------------------------------------- render helpers */
+function out(stepId) { return $("#" + stepId + " .live-out"); }
+/* Every renderer below must survive a missing container: a step that blows up
+   while rendering must never take the whole run down with it. */
+function appendOut(stepId, node) {
+  const box = out(stepId);
+  if (box) box.appendChild(node);
+  return node;
+}
+
+function addChecks(stepId, rows) {
+  const box = document.createElement("div");
+  box.className = "checks";
+  rows.forEach(r => {
+    const el = document.createElement("div");
+    el.className = "check " + (r.ok ? "ok" : "bad");
+    el.innerHTML =
+      '<span class="mark">' + (r.ok ? "&#10003;" : "&#10007;") + "</span>" +
+      '<span class="label">' + esc(r.label) +
+      (r.detail ? ' <span class="detail">' + esc(r.detail) + "</span>" : "") + "</span>" +
+      (r.code ? '<span class="code">' + esc(r.code) + "</span>" : "");
+    box.appendChild(el);
+  });
+  appendOut(stepId, box);
+}
+function addInfo(stepId, text) {
+  const el = document.createElement("p");
+  el.className = "info";
+  el.textContent = text;
+  appendOut(stepId, el);
+}
+function addNote(stepId, text) {
+  const el = document.createElement("p");
+  el.className = "note";
+  el.textContent = text;
+  appendOut(stepId, el);
+}
+function addWarn(stepId, text) {
+  const el = document.createElement("p");
+  el.className = "warn";
+  el.textContent = text;
+  appendOut(stepId, el);
+  term("   ! " + text, "t-bad");
+}
+
+/* A tiny JSON pretty-printer with light syntax colouring. */
+function highlightJson(value) {
+  const text = JSON.stringify(value, null, 2) === undefined ? "undefined" : JSON.stringify(value, null, 2);
+  let html = "", i = 0;
+  const inString = s => (s.charAt(0) === '"' && s.charAt(s.length - 1) === '"');
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < text.length) {
+        if (text[j] === "\\") { j += 2; continue; }
+        if (text[j] === '"') break;
+        j++;
+      }
+      const str = text.slice(i, j + 1);
+      let k = j + 1;
+      while (k < text.length && /\s/.test(text[k])) k++;
+      const isKey = text[k] === ":";
+      html += '<span class="' + (isKey ? "json-key" : "json-str") + '">' + esc(str) + "</span>";
+      i = j + 1;
+      continue;
+    }
+    if (/[-0-9]/.test(ch) && !/[A-Za-z_]/.test(text[i - 1] || "")) {
+      let j = i;
+      while (j < text.length && /[-+0-9.eE]/.test(text[j])) j++;
+      html += '<span class="json-num">' + esc(text.slice(i, j)) + "</span>";
+      i = j;
+      continue;
+    }
+    if (/[a-z]/.test(ch)) {
+      let j = i;
+      while (j < text.length && /[a-z]/.test(text[j])) j++;
+      const word = text.slice(i, j);
+      const cls = (word === "true" || word === "false") ? "json-bool" : "json-null";
+      html += '<span class="' + cls + '">' + esc(word) + "</span>";
+      i = j;
+      continue;
+    }
+    html += '<span class="json-punc">' + esc(ch) + "</span>";
+    i++;
+  }
+  return html;
+}
+function addCode(stepId, label, value, lang) {
+  const id = "c" + Math.random().toString(36).slice(2, 9);
+  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  COPY[id] = text;
+  const wrap = document.createElement("div");
+  wrap.className = "codewrap";
+  wrap.innerHTML =
+    (label ? '<div class="card" style="padding:0 0 9px"><div class="ct" style="margin:0">' + esc(label) + "</div></div>" : "") +
+    '<button class="btn sm copy" data-copy="' + id + '">Copy</button>' +
+    '<pre class="code">' + (lang === "json" ? highlightJson(value) : esc(text)) + "</pre>";
+  appendOut(stepId, wrap);
+}
+function addKv(stepId, pairs) {
+  const ul = document.createElement("ul");
+  ul.className = "kv";
+  pairs.forEach(p => {
+    const li = document.createElement("li");
+    li.innerHTML = "<b>" + esc(p[0]) + "</b> " + esc(p[1]);
+    ul.appendChild(li);
+  });
+  appendOut(stepId, ul);
+}
+function clearOut(stepId) {
+  const el = out(stepId);
+  if (el) el.innerHTML = "";
+}
+
+/* ------------------------------------------------------------- transcript */
+const CONSOLE_DEFAULT_H = 260;
+const CONSOLE_TALL_H = 520;
+function term(line, cls) {
+  const b = $("#term-body");
+  const span = document.createElement("span");
+  if (cls) span.className = cls;
+  span.textContent = line + "\n";
+  b.appendChild(span);
+  b.scrollTop = b.scrollHeight;
+  updateConsolePeek();
+  updateConsoleCount();
+}
+/* The collapsed console shows the most recent line, so you can follow the run
+   without expanding it. */
+function updateConsolePeek() {
+  const peek = $("#console-peek");
+  if (!peek) return;
+  const body = $("#term-body");
+  const lines = (body.textContent || "").split("\n").filter(l => l.trim());
+  peek.textContent = lines.length ? lines[lines.length - 1].trim() : "";
+}
+function updateConsoleCount() {
+  const c = $("#console-count");
+  if (!c) return;
+  const n = document.querySelectorAll("#term-body > span").length;
+  c.textContent = n ? n + " line" + (n === 1 ? "" : "s") : "";
+}
+
+/* ------------------------------------------------------------ step chrome */
+function railSetStatus(i, cls, mark) {
+  const li = $("#rail li[data-i='" + i + "']");
+  if (!li) return;
+  const btn = li.querySelector("button");
+  btn.classList.remove("active", "done", "failed", "running");
+  if (cls) btn.classList.add(cls);
+  li.querySelector(".s").textContent = mark || "";
+}
+function beginStep(i) {
+  S.stepIndex = i;
+  $$("#rail li button").forEach(b => b.classList.remove("active"));
+  railSetStatus(i, "running", "...");
+  const sec = $("#" + STEPS[i].id);
+  if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+  term("\n== " + i + ". " + STEPS[i].title + " ==", "t-step");
+}
+function endStep(i, failed) {
+  railSetStatus(i, failed ? "failed" : "done", failed ? "✘" : "✔");
+  if (failed) railSetStatus(i, "failed", "✘");
+}
+function expect(stepId, label, got, want) {
+  const ok = got === want;
+  if (!ok) S.failures++;
+  addChecks(stepId, [{ ok, label, code: "HTTP " + got }]);
+  term((ok ? "   ✔ " : "   ✘ ") + label + " -> HTTP " + got + (ok ? "" : "  (expected " + want + ")"), ok ? "t-ok" : "t-bad");
+  return ok;
+}
+function check(stepId, label, ok, detail) {
+  if (!ok) S.failures++;
+  addChecks(stepId, [{ ok, label, detail: detail || "" }]);
+  term((ok ? "   ✔ " : "   ✘ ") + label + (detail ? "  " + detail : ""), ok ? "t-ok" : "t-bad");
+  return ok;
+}
+function note(stepId, text) {
+  addNote(stepId, text);
+  term("   → " + text, "t-note");
+}
+function info(stepId, text) {
+  addInfo(stepId, text);
+  term("   " + text, "t-info");
+}
+
+/* =====================================================================
+   The demo itself — a faithful port of demo.py to the browser.
+   ===================================================================== */
+async function makeKey(name, descriptor, expiration) {
+  const st = await api("POST", "/_security/api_key", {
+    name: name, expiration: expiration || "1d", role_descriptors: { [name]: descriptor }
+  }, S.adminAuth);
+  if (st.status !== 200 || !st.json || !st.json.encoded) {
+    throw new Error("could not create API key " + name + " (HTTP " + st.status + "): " + (st.text || "").slice(0, 300));
+  }
+  return st.json.encoded;
+}
+
+async function cleanup() {
+  await api("DELETE", "/_watcher/watch/" + WATCH_ID, null, S.adminAuth);
+  await api("DELETE", "/_security/role_mapping/" + MAPPING_ID, null, S.adminAuth);
+  await api("DELETE", "/_security/api_key", { name: "demo-*" }, S.adminAuth);
+  for (const t of TEAMS.concat(["gamma"])) {
+    await api("DELETE", "/_security/role/team_" + t + "_reader", null, S.adminAuth);
+  }
+  const st = await api("GET", "/_resolve/index/app-*", null, S.adminAuth);
+  if (st.json && Array.isArray(st.json.indices)) {
+    for (const i of st.json.indices) await api("DELETE", "/" + i.name, null, S.adminAuth);
+  }
+}
+
+function roleTemplate(team) {
+  return {
+    indices: [{ names: ["app-" + team + "-*"], privileges: ["read", "view_index_metadata"] }],
+    metadata: { managed_by: "role-per-team-watch" }
+  };
+}
+
+const FIND_MISSING = [
+  "def out = [:];",
+  "for (def i : ctx.payload.indices.indices) {",
+  "  def p = i.name.splitOnToken('-');",
+  "  if (p.length >= 3 && p[0] == 'app' && p[1] ==~ /[a-z0-9]+/) {",
+  "    def rn = 'team_' + p[1] + '_reader';",
+  "    if (!ctx.payload.roles.containsKey(rn)) {",
+  "      out[rn] = ['indices': [['names': ['app-' + p[1] + '-*'],",
+  "                              'privileges': ['read', 'view_index_metadata']]],",
+  "                 'metadata': ['managed_by': 'role-per-team-watch']];",
+  "    }",
+  "  }",
+  "}",
+  "return out;"
+].join("\n");
+
+async function step0() {
+  const id = "step-0";
+  clearOut(id);
+  term("\nWHAT THIS DEMO SIMULATES", "t-head");
+  term("   A team must get read access to its own indices without anyone editing", "t-note");
+  term("   a role by hand. The team cannot create roles; a privileged watcher", "t-note");
+  term("   performs that operation. Three moving parts do it:", "t-note");
+  term("     (a) a JWT   - carries a 'team' claim; the realm turns it into metadata", "t-note");
+  term("     (b) a role mapping with a TEMPLATE - claim 'team' -> role name, resolved at login", "t-note");
+  term("     (c) a watcher - sees new app-<team>-* indices and creates the role body", "t-note");
+
+  const clusterInfo = await api("GET", "/", null, S.adminAuth);
+  const health = await api("GET", "/_cluster/health", null, S.adminAuth);
+  const realm = await api("GET", "/_security/_authenticate", null, S.adminAuth);
+  if (clusterInfo.status !== 200) {
+    addWarn(id, "Could not read cluster info (HTTP " + clusterInfo.status + ").");
+    return;
+  }
+  const h = health.json || {};
+  const box = document.createElement("div");
+  box.className = "cards";
+  box.innerHTML =
+    card("Cluster", clusterInfo.json.cluster_name + " · Elasticsearch " + clusterInfo.json.version.number) +
+    card("Health", h.status + " · " + h.number_of_nodes + " node(s)") +
+    card("Security", realm.status === 200 ? "enabled · " + (realm.json.authentication_realm && realm.json.authentication_realm.name) : "unknown") +
+    card("JWT realm", "jwt1 (HS256, issuer " + ISSUER + ")");
+  out(id).appendChild(box);
+  addKv(id, [
+    ["target", S.esUrl],
+    ["watcher callback", S.cbUrl],
+    ["watch interval", WATCH_INTERVAL],
+    ["teams", TEAMS.join(", ")],
+  ]);
+  info(id, "Connected. This page will now drive the cluster for real.");
+  function card(t, b) {
+    return '<div class="card"><div class="ct">' + esc(t) + '</div><p>' + esc(b) + "</p></div>";
+  }
+}
+
+async function step1() {
+  const id = "step-1";
+  clearOut(id);
+  const descriptor = {
+    cluster: [
+      "cluster:admin/xpack/security/role/put",
+      "cluster:admin/xpack/security/role/bulk_put",
+      "cluster:admin/xpack/security/role/get"
+    ],
+    indices: [{ names: ["app-*"], privileges: ["view_index_metadata"] }]
+  };
+  S.rcKey = await makeKey("demo-role-creator", descriptor);
+  info(id, "cluster: role put/get only | indices: view_index_metadata on app-*");
+  addCode(id, "the key's role descriptor:", descriptor, "json");
+  addKv(id, [
+    ["cluster", "role put, bulk_put, get"],
+    ["indices", "view_index_metadata on app-*"],
+    ["not granted", "manage_security · users · api keys · data read"],
+  ]);
+  note(id, "this key can write roles but read no data and manage no users.");
+  note(id, "role put/get privileges are cluster-wide, not restricted to team roles.");
+  addCode(id, "the encoded key (kept in memory, used by the watcher):", apiKeyAuth(S.rcKey).slice(0, 30) + "…");
+}
+
+async function step2() {
+  const id = "step-2";
+  clearOut(id);
+  const mapping = {
+    enabled: true, roles: [],
+    role_templates: [{ template: { source: "team_{{metadata.jwt_claim_team}}_reader" }, format: "string" }],
+    rules: { all: [{ field: { "realm.name": "jwt1" } }, { field: { "metadata.jwt_claim_team": "*" } }] }
+  };
+  const st = await api("PUT", "/_security/role_mapping/" + MAPPING_ID, mapping, S.adminAuth);
+  info(id, "role mapping stored: " + st.status);
+  addCode(id, "the mapping that turns a claim into a role NAME at login time:", mapping, "json");
+  note(id, "the template is what makes this zero-touch: no user is listed anywhere.");
+  note(id, "login resolves the name on the fly, so a new team needs no admin edit.");
+
+  const sample = await mintJwt("alice@alpha.example", "alpha", { ttl: 3600 });
+  const parts = jwtParts(sample);
+  info(id, "a token as the app team's IdP would issue it (HS256, shared demo secret):");
+  addCode(id, "token", sample);
+  addCode(id, "decoded header:", parts.header, "json");
+  addCode(id, "decoded claims:", parts.claims, "json");
+  addKv(id, [
+    ["claims['team']", parts.claims.team],
+    ["resolves to", "role team_" + parts.claims.team + "_reader"],
+  ]);
+  addCode(id, "try it yourself:", 'curl -H "Authorization: Bearer ' + sample + '" ' + S.esUrl + "/_security/_authenticate", "text");
+}
+
+async function step3() {
+  const id = "step-3";
+  clearOut(id);
+  const rolesReq = { scheme: "http", host: "localhost", port: 9200, path: "/_security/role", headers: { Authorization: apiKeyAuth(S.rcKey) } };
+  const idxReq = {
+    scheme: "http", host: "localhost", port: 9200, path: "/_resolve/index/app-*",
+    params: { expand_wildcards: "open" }, headers: { Authorization: apiKeyAuth(S.rcKey) }
+  };
+  /* the callback host must be the one Elasticsearch uses to reach itself.
+     Note: the watcher's http template needs "port" as a number, not a string. */
+  const cb = new URL(S.cbUrl);
+  rolesReq.host = cb.hostname;
+  rolesReq.port = Number(cb.port) || (cb.protocol === "https:" ? 443 : 80);
+  rolesReq.scheme = cb.protocol.replace(":", "");
+  idxReq.host = rolesReq.host;
+  idxReq.port = rolesReq.port;
+  idxReq.scheme = rolesReq.scheme;
+
+  const watch = {
+    trigger: { schedule: { interval: WATCH_INTERVAL } },
+    input: { chain: { inputs: [{ roles: { http: { request: rolesReq } } }, { indices: { http: { request: idxReq } } }] } },
+    condition: { script: { lang: "painless", source: FIND_MISSING.replace("return out;", "return out.size() > 0;") } },
+    transform: { script: { lang: "painless", source: FIND_MISSING.replace("return out;", "return ['body': ['roles': out]];") } },
+    actions: {
+      bulk_create_roles: {
+        webhook: {
+          scheme: rolesReq.scheme, host: rolesReq.host, port: rolesReq.port, method: "post",
+          path: "/_security/role",
+          headers: { Authorization: apiKeyAuth(S.rcKey), "Content-Type": "application/json" },
+          body: "{{#toJson}}ctx.payload.body{{/toJson}}"
+        }
+      }
+    }
+  };
+  const st = await api("PUT", "/_watcher/watch/" + WATCH_ID, watch, S.adminAuth);
+  if (st.status >= 300) {
+    addWarn(id, "watch rejected (HTTP " + st.status + "): " + (st.text || "").slice(0, 400));
+    S.failures++;
+    return;
+  }
+  info(id, "watch stored: " + st.status + " created=" + (st.json && st.json.created));
+  addCode(id, "the watch definition:", watch, "json");
+  addCode(id, "the painless script that decides which roles are missing:", FIND_MISSING, "text");
+  info(id, "the role JSON the watcher will POST to /_security/role for each team it finds:");
+  TEAMS.forEach(t => addCode(id, "team_" + t + "_reader:", roleTemplate(t), "json"));
+  note(id, "the watcher is the only thing that ever creates a role, and it does it");
+  note(id, "from index NAMES - app-alpha-orders => team_alpha_reader. The team never");
+  note(id, "names a role; the index name alone decides the role body.");
+}
+
+async function step4() {
+  const id = "step-4";
+  clearOut(id);
+  S.teamKeys = {};
+  for (const t of TEAMS) {
+    const descriptor = {
+      cluster: [],
+      indices: [{ names: ["app-" + t + "-*"], privileges: ["create_index", "write"] }]
+    };
+    S.teamKeys[t] = await makeKey("demo-bootstrap-" + t, descriptor);
+    info(id, "team " + t + ": create_index+write on app-" + t + "-*   (no read, no roles, no cluster)");
+  }
+  addCode(id, "what the team actually holds (team alpha):", {
+    cluster: [], indices: [{ names: ["app-alpha-*"], privileges: ["create_index", "write"] }]
+  }, "json");
+  note(id, "this is the whole trust model: the team can CREATE and WRITE its own");
+  note(id, "indices, and that is ALL. No read, no role verbs, no cluster verbs.");
+}
+
+async function step5() {
+  const id = "step-5";
+  clearOut(id);
+  const A = apiKeyAuth(S.teamKeys.alpha);
+  let st = await api("PUT", "/app-alpha-orders", {}, A);
+  expect(id, "create app-alpha-orders", st.status, 200);
+  st = await api("POST", "/app-alpha-orders/_doc?refresh=true", { order: 1, item: "widget" }, A);
+  expect(id, "write a document", st.status, 201);
+  st = await api("PUT", "/app-beta-sneaky", {}, A);
+  expect(id, "create app-beta-sneaky (someone else's pattern)", st.status, 403);
+  st = await api("PUT", "/random-index", {}, A);
+  expect(id, "create random-index (outside pattern)", st.status, 403);
+  st = await api("GET", "/app-alpha-orders/_search", null, A);
+  expect(id, "READ own index with the create key", st.status, 403);
+  st = await api("PUT", "/_security/role/evil", { cluster: ["all"] }, A);
+  expect(id, "create a role with the create key", st.status, 403);
+  note(id, "the 403s are the point: the team is contained to its own namespace and");
+  note(id, "can never mint itself a role. Its only lever is CREATING an index -");
+  note(id, "which is exactly the trigger the watcher is waiting for.");
+}
+
+async function step6() {
+  const id = "step-6";
+  clearOut(id);
+  const tok = bearer(await mintJwt("alice@alpha.example", "alpha"));
+  const st = await api("GET", "/app-alpha-orders/_search", null, tok);
+  expect(id, "alpha JWT reads app-alpha-orders (role not created yet)", st.status, 403);
+  note(id, "the token is valid and the realm accepts it - the team claim already");
+  note(id, "resolves to team_alpha_reader. The role just doesn't exist yet, so the");
+  note(id, "mapping grants nothing. Authentication and authorisation are separate.");
+}
+
+async function step7() {
+  const id = "step-7";
+  clearOut(id);
+  const t0 = Date.now();
+  let st = null, body = null;
+  while (Date.now() - t0 < 150000) {
+    const r = await api("GET", "/_security/role/team_alpha_reader", null, S.adminAuth);
+    st = r.status; body = r.json;
+    if (st === 200) break;
+    await sleep(2000);
+  }
+  if (st !== 200) {
+    addWarn(id, "the watcher never created team_alpha_reader within 150s.");
+    S.failures++;
+    return;
+  }
+  const secs = Math.round((Date.now() - t0) / 1000);
+  info(id, "role appeared after " + secs + "s: " + JSON.stringify(body.team_alpha_reader.indices));
+  const live = body.team_alpha_reader;
+  const got = {
+    indices: (live.indices || []).map(i => {
+      const o = {}; ["names", "privileges"].forEach(k => { if (k in i) o[k] = i[k]; }); return o;
+    }),
+    metadata: live.metadata || {}
+  };
+  check(id, "watcher created the role JSON shown in step 3", JSON.stringify(got) === JSON.stringify(roleTemplate("alpha")),
+    JSON.stringify(got) === JSON.stringify(roleTemplate("alpha")) ? "" : "got " + JSON.stringify(got));
+  addCode(id, "the live role, as stored by the watcher:", live, "json");
+  note(id, "the team never asked for this and never had the privilege to do it.");
+  note(id, "Creating app-alpha-orders was enough: watcher saw the name, built the");
+  note(id, "role from the name pattern, and the step-2 mapping now has something");
+  note(id, "to point at. This is the self-service loop, fully closed.");
+}
+
+async function step8() {
+  const id = "step-8";
+  clearOut(id);
+  const tok = bearer(await mintJwt("alice@alpha.example", "alpha"));
+  let st = await api("GET", "/app-alpha-orders/_search", null, tok);
+  expect(id, "alpha JWT search app-alpha-orders", st.status, 200);
+  if (st.status === 200 && st.json) {
+    const hits = (st.json.hits && st.json.hits.hits) || [];
+    info(id, "hits: " + ((st.json.hits && st.json.hits.total && st.json.hits.total.value) || 0) +
+      "  -> " + JSON.stringify(hits.length ? hits[0]._source : null));
+  }
+  st = await api("POST", "/app-alpha-orders/_doc", { x: 1 }, tok);
+  expect(id, "alpha JWT WRITE (read-only role)", st.status, 403);
+  st = await api("GET", "/app-beta-logs/_search", null, tok);
+  expect(id, "alpha JWT search app-beta-logs  (other team)", st.status, 403);
+  st = await api("GET", "/app-*/_search", null, tok);
+  expect(id, "alpha JWT search app-*  (200 but only alpha's data)", st.status, 200);
+  if (st.status === 200 && st.json) {
+    const idxs = Array.from(new Set(((st.json.hits && st.json.hits.hits) || []).map(h => h._index))).sort();
+    info(id, "indices actually searched: " + (idxs.join(", ") || "(none)"));
+  }
+  st = await api("GET", "/_security/role", null, tok);
+  expect(id, "alpha JWT list roles", st.status, 403);
+  st = await api("GET", "/_security/_authenticate", null, tok);
+  if (st.status === 200 && st.json) {
+    const j = st.json;
+    info(id, "_authenticate -> user=" + j.username + " realm=" +
+      ((j.authentication_realm && j.authentication_realm.name) || "?") + " roles=" + JSON.stringify(j.roles));
+  }
+  note(id, "read its own data: YES. read another team's data: NO. write: NO.");
+  note(id, "the same claim that was refused in step 6 now grants access - the only");
+  note(id, "thing that changed is that the watcher filled in the role body.");
+}
+
+async function step9() {
+  const id = "step-9";
+  clearOut(id);
+  const B = apiKeyAuth(S.teamKeys.beta);
+  await api("PUT", "/app-beta-logs", {}, B);
+  await api("POST", "/app-beta-logs/_doc?refresh=true", { msg: "hello from beta" }, B);
+  const t0 = Date.now();
+  while (Date.now() - t0 < 150000) {
+    const r = await api("GET", "/_security/role/team_beta_reader", null, S.adminAuth);
+    if (r.status === 200) break;
+    await sleep(2000);
+  }
+  const btok = bearer(await mintJwt("bob@beta.example", "beta"));
+  let st = await api("GET", "/app-beta-logs/_search", null, btok);
+  expect(id, "beta JWT search app-beta-logs", st.status, 200);
+  st = await api("GET", "/app-alpha-orders/_search", null, btok);
+  expect(id, "beta JWT search app-alpha-orders", st.status, 403);
+  note(id, "beta onboarded itself: own key -> own index -> watcher -> own role.");
+  note(id, "No admin action between alpha and beta. That is what 'self-service' means.");
+}
+
+async function step10() {
+  const id = "step-10";
+  clearOut(id);
+  let st = await api("GET", "/app-alpha-orders/_search", null, bearer(await mintJwt("eve", "alpha", { key: "not-the-real-secret-not-the-real-secret" })));
+  expect(id, "wrong signature", st.status, 401);
+  st = await api("GET", "/app-alpha-orders/_search", null, bearer(await mintJwt("eve", "alpha", { ttl: -60 })));
+  expect(id, "expired token", st.status, 401);
+  st = await api("GET", "/app-alpha-orders/_search", null, bearer(await mintJwt("eve", "alpha", { issuer: "evil-issuer" })));
+  expect(id, "wrong issuer", st.status, 401);
+  st = await api("GET", "/app-alpha-orders/_search", null, bearer(await mintJwt("eve", "gamma")));
+  expect(id, "valid token for team with no indices/role (gamma)", st.status, 403);
+  note(id, "the claim is not a capability: a valid signature alone grants nothing.");
+  note(id, "gamma has no index, so no watcher-generated role exists, so the mapping");
+  note(id, "resolves to a role that grants nothing.");
+}
+
+async function step11() {
+  const id = "step-11";
+  clearOut(id);
+  term("\nWHAT JUST HAPPENED", "t-head");
+  [
+    "1. The admin did three things ONCE: a role-mapping template, a JWT",
+    "   realm, and a watcher. No user, no role, and no mapping per team.",
+    "2. The team held one API key: create_index + write on app-<team>-*.",
+    "3. Creating app-alpha-orders triggered the watcher, which built",
+    "   team_alpha_reader from the index NAME - a privilege the team",
+    "   did not have and never asked for.",
+    "4. A JWT with team=alpha then resolved to that role at login, so the",
+    "   team got read access it was never granted directly, while being",
+    "   locked out of every other team's data and of role creation.",
+  ].forEach(l => term(l, "t-note"));
+
+  const failed = S.failures;
+  if (failed) {
+    term(failed + " check(s) failed", "t-bad");
+    addWarn(id, failed + " check(s) failed.");
+  } else {
+    term("All checks passed.", "t-ok");
+    addInfo(id, "All checks passed.");
+  }
+  const keepBox = document.createElement("label");
+  keepBox.className = "pill";
+  keepBox.style.cursor = "pointer";
+  keepBox.innerHTML = '<input type="checkbox" id="f-keep" ' + (S.keep ? "checked" : "") +
+    ' style="width:auto;margin:0"><span>Keep the demo objects after the run</span>';
+  out(id).appendChild(keepBox);
+  $("#f-keep").addEventListener("change", e => { S.keep = e.target.checked; });
+  addCode(id, "clean up now, or keep the cluster as it is and poke it yourself:", [
+    "# keep it, then mint a token:",
+    "curl -H \"Authorization: Bearer $(python3 demo.py --mint alpha)\" " + S.esUrl + "/_security/_authenticate",
+    "",
+    "# or clean up from the terminal:",
+    "python3 demo.py            # cleans up before and after",
+  ].join("\n"), "text");
+}
+
+/* ------------------------------------------------------------- the steps */
+const STEPS = [
+  { id: "step-0",  title: "Overview",              run: step0 },
+  { id: "step-1",  title: "Role-creator API key",  run: step1 },
+  { id: "step-2",  title: "JWT role mapping",      run: step2 },
+  { id: "step-3",  title: "The watcher",           run: step3 },
+  { id: "step-4",  title: "Team bootstrap keys",   run: step4 },
+  { id: "step-5",  title: "Team alpha indexes",    run: step5 },
+  { id: "step-6",  title: "Before the watcher",    run: step6 },
+  { id: "step-7",  title: "Watcher creates role",  run: step7 },
+  { id: "step-8",  title: "Alpha reads its data",  run: step8 },
+  { id: "step-9",  title: "Team beta, self-service", run: step9 },
+  { id: "step-10", title: "Token hygiene",         run: step10 },
+  { id: "step-11", title: "What just happened",    run: step11 },
+];
+
+/* --------------------------------------------------------------- runner */
+async function runSteps(from, to) {
+  if (S.running) return;
+  if (!S.connected) { toast("Connect to a cluster first"); return; }
+  const full = to >= STEPS.length - 1;
+  S.running = true;
+  setBusy(true);
+  try {
+    if (from === 0) {
+      S.failures = 0;
+      updateFailPill();
+      term("\n" + "=".repeat(64), "t-head");
+      term("cleaning up any demo objects left over from a previous run...", "t-info");
+      await cleanup();
+      for (const st of STEPS) clearOut(st.id);
+      $$("#rail li button").forEach(b => { b.classList.remove("done", "failed"); b.querySelector(".s").textContent = ""; });
+    }
+    for (let k = from; k <= to; k++) {
+      beginStep(k);
+      let failed = false;
+      try {
+        await STEPS[k].run();
+      } catch (e) {
+        failed = true;
+        S.failures++;
+        try {
+          addWarn(STEPS[k].id, "Step failed: " + (e && e.message ? e.message : e));
+        } catch (e2) { /* the step container may be missing; the log below still shows it */ }
+        term("   ✘ step failed: " + (e && e.message ? e.message : e), "t-bad");
+      }
+      endStep(k, failed);
+      refreshLive();
+      await sleep(120);
+    }
+    if (full) {
+      term("", "");
+      term(S.failures ? S.failures + " check(s) failed" : "All checks passed.", S.failures ? "t-bad" : "t-ok");
+      if (!S.keep) {
+        term("cleaning up demo objects...", "t-info");
+        await cleanup();
+        term("cleaned up.", "t-info");
+      } else {
+        term("left the demo objects in place. Mint a token with the panel on the right.", "t-info");
+      }
+    }
+  } catch (e) {
+    term("   ✘ the run aborted: " + (e && e.message ? e.message : e), "t-bad");
+  } finally {
+    S.running = false;
+    setBusy(false);
+    updateFailPill();
+    refreshLive();
+  }
+}
+
+function setBusy(busy) {
+  $("#btn-run").disabled = busy;
+  $("#btn-step").disabled = busy || !S.connected;
+  $("#btn-reset").disabled = busy;
+  $("#pill-conn").className = "pill " + (busy ? "busy" : (S.connected ? "ok" : ""));
+  $("#conn-text").textContent = busy ? "Running demo…" : (S.connected ? "Connected" : "Not connected");
+  $("#console").classList.toggle("busy", busy);
+}
+
+function updateFailPill() {
+  const p = $("#pill-fail");
+  p.className = "pill " + (S.failures ? "err" : "ok");
+  $("#fail-text").textContent = S.failures + " failed";
+}
+
+/* --------------------------------------------------------------- connect */
+function parseEnv(text) {
+  const out = {};
+  (text || "").split("\n").forEach(line => {
+    line = line.trim();
+    if (line && !line.startsWith("#") && line.includes("=")) {
+      const k = line.slice(0, line.indexOf("="));
+      const v = line.slice(line.indexOf("=") + 1).trim().replace(/^["']|["']$/g, "");
+      out[k.trim()] = v;
+    }
+  });
+  return out;
+}
+function showErr(msg) {
+  const e = $("#connect-err");
+  e.textContent = msg;
+  e.classList.add("show");
+}
+function clearErr() { $("#connect-err").classList.remove("show"); }
+
+async function connect() {
+  clearErr();
+  const url = $("#f-url").value.trim().replace(/\/+$/, "");
+  const env = parseEnv($("#f-env").value);
+  const password = env.ELASTIC_PASSWORD || "";
+  const hmacKey = env.JWT_HMAC_KEY || "";
+  if (!url) return showErr("Enter the Elasticsearch URL.");
+  if (!password) return showErr("ELASTIC_PASSWORD is missing. Paste the contents of your .env file.");
+  if (!hmacKey) return showErr("JWT_HMAC_KEY is missing. Paste the contents of your .env file.");
+
+  S.esUrl = url;
+  S.cbUrl = $("#f-cb").value.trim().replace(/\/+$/, "") || url;
+  S.password = password;
+  S.hmacKey = hmacKey;
+  S.adminAuth = "Basic " + btoa("elastic:" + password);
+
+  $("#pill-conn").className = "pill busy";
+  $("#conn-text").textContent = "Connecting…";
+  const r = await api("GET", "/_cluster/health", null, S.adminAuth);
+  if (r.status !== 200) {
+    $("#pill-conn").className = "pill err";
+    $("#conn-text").textContent = "Not connected";
+    showErr(r.network
+      ? "Could not reach " + S.esUrl + ". Is the demo stack running? Start it with ./run.sh"
+      : "Elasticsearch answered HTTP " + r.status + " for the admin credentials. Check ELASTIC_PASSWORD.");
+    return;
+  }
+  S.connected = true;
+  $("#connect").style.display = "none";
+  if ($("#f-remember").checked) {
+    try {
+      sessionStorage.setItem("ear-demo", JSON.stringify({ url: S.esUrl, cb: S.cbUrl, env: $("#f-env").value }));
+    } catch (e) { /* storage unavailable */ }
+  }
+  setBusy(false);
+  toast("Connected to " + S.esUrl);
+  try {
+    await step0();
+  } catch (e) {
+    term("   ✘ overview failed: " + (e && e.message ? e.message : e), "t-bad");
+  }
+  refreshLive();
+  startPolling();
+}
+
+async function tryAutoload() {
+  clearErr();
+  /* Only ever pull .env over http from the loopback interface. Serving this
+     repository on a LAN address would make .env readable by anyone who can
+     reach the server, so from anywhere else you paste the values by hand. */
+  const host = location.hostname;
+  if (location.protocol !== "http:" && location.protocol !== "https:") {
+    return showErr("A file:// page cannot read .env. Serve the folder over http " +
+                   "(python3 -m http.server) or paste the contents of .env by hand.");
+  }
+  if (!["localhost", "127.0.0.1", "::1", ""].includes(host)) {
+    return showErr("Refusing to fetch .env from a non-localhost origin (" + host + "). " +
+                   "That would expose the demo credentials to anyone who can reach the server — " +
+                   "paste the contents of .env by hand instead.");
+  }
+  const candidates = ["../.env", "./.env", ".env"];
+  for (const c of candidates) {
+    try {
+      const r = await fetch(c, { cache: "no-store" });
+      if (!r.ok) continue;
+      const text = await r.text();
+      if (text.includes("JWT_HMAC_KEY") || text.includes("ELASTIC_PASSWORD")) {
+        $("#f-env").value = text;
+        toast("Loaded " + c);
+        return;
+      }
+    } catch (e) { /* try the next candidate */ }
+  }
+  showErr("Could not read .env from the browser. Serve this folder over http (python3 -m http.server) " +
+          "or paste the contents of .env by hand.");
+}
+
+/* --------------------------------------------------------- live cluster */
+async function refreshLive() {
+  if (!S.connected) return;
+  const h = await api("GET", "/_cluster/health", null, S.adminAuth);
+  const pill = $("#pill-health");
+  if (h.status === 200 && h.json) {
+    pill.className = "pill ok";
+    $("#health-text").textContent = h.json.status + " · " + h.json.number_of_nodes + " node(s)";
+    $("#live-cluster").innerHTML =
+      row("status", h.json.status) + row("nodes", h.json.number_of_nodes) +
+      row("active shards", h.json.active_shards) + row("unassigned", h.json.unassigned_shards);
+  } else {
+    pill.className = "pill err";
+    $("#health-text").textContent = "unreachable";
+  }
+  const idx = await api("GET", "/_cat/indices/app-*?format=json&h=index,docs.count,health", null, S.adminAuth);
+  const ul = $("#live-indices");
+  if (idx.status === 200 && Array.isArray(idx.json) && idx.json.length) {
+    ul.innerHTML = idx.json.map(i =>
+      "<li><span>" + esc(i.index) + "</span><span class='tag'>" + esc(i["docs.count"] || 0) + " docs</span></li>").join("");
+  } else {
+    ul.innerHTML = "<li class='empty'>none yet</li>";
+  }
+  const roles = await api("GET", "/_security/role", null, S.adminAuth);
+  const rul = $("#live-roles");
+  if (roles.status === 200 && roles.json) {
+    const names = Object.keys(roles.json).filter(n => /^team_.*_reader$/.test(n)).sort();
+    rul.innerHTML = names.length
+      ? names.map(n => "<li><span>" + esc(n) + "</span><span class='tag'>read</span></li>").join("")
+      : "<li class='empty'>none yet</li>";
+  } else {
+    rul.innerHTML = "<li class='empty'>none yet</li>";
+  }
+  function row(k, v) { return "<div><span>" + esc(k) + "</span><span>" + esc(String(v)) + "</span></div>"; }
+}
+function startPolling() {
+  stopPolling();
+  S.pollTimer = setInterval(refreshLive, 2500);
+}
+function stopPolling() {
+  if (S.pollTimer) clearInterval(S.pollTimer);
+  S.pollTimer = null;
+}
+
+/* ---------------------------------------------------------------- rail */
+function buildRail() {
+  const ol = $("#rail");
+  ol.innerHTML = "";
+  STEPS.forEach((s, i) => {
+    const li = document.createElement("li");
+    li.dataset.i = i;
+    li.innerHTML = '<button type="button"><span class="n">' + i + '</span><span class="t">' +
+      esc(s.title) + '</span><span class="s"></span></button>';
+    li.querySelector("button").addEventListener("click", () => {
+      $("#" + s.id).scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    ol.appendChild(li);
+  });
+}
+
+/* ------------------------------------------------------- scroll spy */
+function setupScrollSpy() {
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const i = STEPS.findIndex(s => s.id === e.target.id);
+      if (i < 0) return;
+      $$("#rail li button").forEach(b => b.classList.remove("active"));
+      $$("#steps .step").forEach(s => s.classList.remove("active"));
+      e.target.classList.add("active");
+      const li = $("#rail li[data-i='" + i + "']");
+      if (li) li.querySelector("button").classList.add("active");
+    });
+  }, { root: $(".page"), rootMargin: "-14px 0px -60% 0px", threshold: 0 });
+  $$("#steps .step").forEach(s => io.observe(s));
+}
+
+/* ------------------------------------------------------------- wiring */
+function setConsoleHeight(px) {
+  const h = Math.max(52, Math.min(Math.round(px), window.innerHeight - 140));
+  document.documentElement.style.setProperty("--console-h", h + "px");
+  syncToastOffset();
+}
+function expandConsole() {
+  const c = $("#console");
+  if (c.classList.contains("collapsed")) {
+    c.classList.remove("collapsed");
+    $("#btn-console-toggle").textContent = "Collapse";
+    if (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--console-h"), 10) < 120) {
+      setConsoleHeight(CONSOLE_DEFAULT_H);
+    }
+  }
+}
+function toggleConsole() {
+  const c = $("#console");
+  const collapsed = c.classList.toggle("collapsed");
+  $("#btn-console-toggle").textContent = collapsed ? "Expand" : "Collapse";
+  if (!collapsed) updateConsolePeek();
+  syncToastOffset();
+}
+/* Keep the toast clear of the console dock, whatever its height. */
+function syncToastOffset() {
+  const c = $("#console");
+  const h = c ? c.getBoundingClientRect().height : 260;
+  document.documentElement.style.setProperty("--toast-h", h + "px");
+}
+/* Drag the grip to resize the console; double-click resets it. */
+function setupConsoleResize() {
+  const grip = $("#console-grip");
+  const consoleEl = $("#console");
+  let dragging = false, startY = 0, startH = 0;
+
+  grip.addEventListener("pointerdown", e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = consoleEl.getBoundingClientRect().height;
+    consoleEl.classList.add("dragging");
+    grip.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  grip.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    setConsoleHeight(startH - (e.clientY - startY));
+  });
+  const stop = e => {
+    if (!dragging) return;
+    dragging = false;
+    consoleEl.classList.remove("dragging");
+    try { grip.releasePointerCapture(e.pointerId); } catch (err) { /* already released */ }
+  };
+  grip.addEventListener("pointerup", stop);
+  grip.addEventListener("pointercancel", stop);
+  grip.addEventListener("dblclick", () => {
+    expandConsole();
+    setConsoleHeight(CONSOLE_DEFAULT_H);
+  });
+  window.addEventListener("resize", () => {
+    const h = consoleEl.getBoundingClientRect().height;
+    if (h > window.innerHeight - 140) setConsoleHeight(window.innerHeight - 140);
+    syncToastOffset();
+  });
+}
+
+/* The teardown hook only exists when the page is served by ./web.sh. A page
+   opened straight from disk cannot stop the container, so say so up front. */
+async function detectTeardownHook() {
+  const note = $("#teardown-note");
+  const btn = $("#btn-teardown");
+  if (location.protocol === "file:") {
+    if (note) note.style.display = "";
+    if (btn) btn.title = "Run ./teardown.sh in a terminal to stop the cluster";
+    return;
+  }
+  try {
+    /* A GET on the teardown path answers 405 when the hook is present and 404
+       when it is not. */
+    const res = await fetch("/_teardown", { method: "GET" });
+    const has = res.status !== 404;
+    if (!has && note) note.style.display = "";
+    if (btn && !has) btn.title = "Run ./teardown.sh in a terminal to stop the cluster";
+  } catch (e) {
+    if (note) note.style.display = "";
+  }
+}
+
+function wire() {
+  $("#btn-connect").addEventListener("click", connect);
+  $("#btn-autoload").addEventListener("click", tryAutoload);
+  $("#btn-run").addEventListener("click", () => { expandConsole(); runSteps(0, STEPS.length - 1); });
+  $("#btn-step").addEventListener("click", () => {
+    expandConsole();
+    const next = S.stepIndex < 0 ? 0 : Math.min(S.stepIndex + 1, STEPS.length - 1);
+    runSteps(next, next);
+  });
+  $("#btn-reset").addEventListener("click", async () => {
+    if (!S.connected) { toast("Not connected"); return; }
+    await cleanup();
+    for (const st of STEPS) clearOut(st.id);
+    $$("#rail li button").forEach(b => { b.classList.remove("done", "failed"); b.querySelector(".s").textContent = ""; });
+    S.failures = 0;
+    updateFailPill();
+    refreshLive();
+    toast("Demo objects removed");
+  });
+  $("#btn-teardown").addEventListener("click", teardownStack);
+  $("#btn-console-toggle").addEventListener("click", () => toggleConsole());
+  $("#btn-console-max").addEventListener("click", () => {
+    const c = $("#console");
+    const tall = c.getBoundingClientRect().height > (CONSOLE_TALL_H + CONSOLE_DEFAULT_H) / 2;
+    setConsoleHeight(tall ? CONSOLE_DEFAULT_H : CONSOLE_TALL_H);
+    expandConsole();
+  });
+  $("#btn-console-clear").addEventListener("click", () => {
+    $("#term-body").innerHTML = "";
+    updateConsolePeek();
+    updateConsoleCount();
+  });
+  setupConsoleResize();
+  $("#btn-console-copy").addEventListener("click", async () => {
+    await copyText($("#term-body").textContent);
+    toast("Transcript copied");
+  });
+  $("#btn-mint").addEventListener("click", async () => {
+    if (!S.connected) { toast("Connect first"); return; }
+    const team = $("#mint-team").value;
+    const tok = await mintJwt("user@" + team + ".example", team, { ttl: 3600 });
+    $("#mint-out").style.display = "block";
+    $("#mint-out").textContent = tok;
+    $("#btn-curl").style.display = "block";
+    $("#btn-curl").onclick = async () => {
+      await copyText('curl -H "Authorization: Bearer ' + tok + '" ' + S.esUrl + "/_security/_authenticate");
+      toast("curl command copied");
+    };
+  });
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]");
+    if (!b) return;
+    await copyText(COPY[b.getAttribute("data-copy")] || "");
+    toast("Copied");
+  });
+  window.addEventListener("beforeunload", stopPolling);
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e2) { /* ignore */ }
+    ta.remove();
+  }
+}
+
+/* --------------------------------------------------- stop the demo stack */
+/* Removing the Elasticsearch container and its data volume is a job for the
+   machine the browser runs on, not for the page. When the page is served by
+   ./web.sh (serve.py) the server exposes a POST /_teardown hook that runs
+   ./teardown.sh for us; otherwise we show the command to run by hand. */
+async function teardownStack() {
+  const btn = $("#btn-teardown");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = "Stopping…";
+  term("removing the demo stack (container, network and volume)…", "t-info");
+  try {
+    const res = await fetch("/_teardown", { method: "POST" });
+    let body = null;
+    try { body = await res.json(); } catch (e) { /* non-JSON response */ }
+    if (res.ok && body && body.ok) {
+      term("demo stack removed.", "t-ok");
+      toast("Demo cluster stopped and its data deleted");
+      S.connected = false;
+      stopPolling();
+      $("#pill-conn").className = "pill";
+      $("#conn-text").textContent = "Cluster stopped";
+      $("#pill-health").className = "pill";
+      $("#health-text").textContent = "—";
+      $("#live-cluster").innerHTML = '<div><span>status</span><span>stopped</span></div>';
+      $("#live-indices").innerHTML = "<li class='empty'>none</li>";
+      $("#live-roles").innerHTML = "<li class='empty'>none</li>";
+      $("#connect").style.display = "";
+      return;
+    }
+    const detail = body && body.output ? body.output.slice(0, 300) : "HTTP " + res.status;
+    term("could not stop the stack: " + detail, "t-bad");
+    toast("Could not stop the cluster — run ./teardown.sh");
+  } catch (e) {
+    term("the teardown hook is not available; run ./teardown.sh in a terminal.", "t-bad");
+    toast("Run ./teardown.sh to stop the cluster");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+/* --------------------------------------------------------------- boot */
+buildRail();
+setupScrollSpy();
+wire();
+setBusy(false);
+updateFailPill();
+term("Elasticsearch auto-role — live demo", "t-head");
+term("Point this page at your demo cluster to begin.", "t-note");
+updateConsolePeek();
+updateConsoleCount();
+syncToastOffset();
+detectTeardownHook();
+
+/* restore a previous session if the user asked us to remember it */
+try {
+  const saved = sessionStorage.getItem("ear-demo");
+  if (saved) {
+    const o = JSON.parse(saved);
+    $("#f-url").value = o.url || "";
+    $("#f-cb").value = o.cb || "";
+    $("#f-env").value = o.env || "";
+  }
+} catch (e) { /* ignore */ }
+
+/* expose a tiny hook so the page can be driven by a headless browser */
+window.earDemo = { S, STEPS, runSteps, connect, refreshLive, mintJwt, cleanup, api, sha256Bytes, hmacSha256Bytes, hex };
+</script>
+</body>
+</html>
